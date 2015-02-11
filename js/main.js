@@ -19,25 +19,32 @@ window.onload = function() {
         // Loads images
         game.load.image( 'world', 'assets/CloudBackground.png' );
         game.load.image( 'catinabox', 'assets/KittenFlyer.png');
-        game.load.image( 'monster', 'assets/Specter.png');
+        game.load.image( 'monster', 'assets/Bird.png');
         game.load.image( 'magic', 'assets/Boltshot.png');
         game.load.image( 'coin', 'assets/Coin.png');
         
         // loads sound
         game.load.audio( 'castSound', 'assets/magicshot.mp3');
         game.load.audio( 'backgroundMusic', 'assets/AnimalCrossing-TownHall.ogg');
+        game.load.audio( 'coinSound', 'assets/coincollect.ogg');
     }
     
     //background image
     var world;
     
-    //player and monster sprites
+    //player sprite
     var player;
+    
+    //controls enemy creation
     var enemies;
+    var enemyTimer = 2500;
+    var nextEnemy = 0;
+    var enemyCount = 0;
+    var minEnemyTimer = 100;
     
     //controls coin creation
     var coins;
-    var coinTimer = 2000;
+    var coinTimer = 1000;
     var nextCoin = 0;
     
     //player's current score
@@ -46,7 +53,7 @@ window.onload = function() {
     //game over message (and player death)
     var lost;
     var style;
-    var lives = 3;
+    var lives;
     var isAlive;
     
     //player input
@@ -56,6 +63,7 @@ window.onload = function() {
     //sounds
     var fx;
     var music;
+    var coinfx;
     
     //related to firing
     var bolts;
@@ -79,6 +87,16 @@ window.onload = function() {
         game.physics.enable( player, Phaser.Physics.ARCADE );
         // Make it bounce off of the world bounds.
         player.body.collideWorldBounds = true;
+        
+        // adds enemies
+        enemies = game.add.group();
+        enemies.enableBody = true;
+        enemies.physicsBodyType = Phaser.Physics.ARCADE;
+        enemies.createMultiple(50, 'monster', 0, false);
+        enemies.setAll('anchor.x', 0.5);
+        enemies.setAll('anchor.y', 0.5);
+        enemies.setAll('outOfBoundsKill', true);
+        enemies.setAll('checkWorldBounds', true);
         
         
         // adds energy bullets
@@ -109,10 +127,12 @@ window.onload = function() {
         fx = game.add.audio('castSound');
         music = game.add.audio('backgroundMusic', 1, true);
         music.play('', 0, 1, true);
+        coinfx = game.add.audio('coinSound');
         
-        //initializes score and player's 1 life
+        //initializes score and player's 3 lives
         score = 0;
         isAlive = true;
+        lives = 3;
         
         //creates game over
         style = { font: "65px Arial", fill: "#ff0044", align: "center" };
@@ -126,19 +146,19 @@ window.onload = function() {
         player.body.velocity.setTo(0, 0);
         if (cursors.left.isDown)
         {
-            player.body.velocity.x = -150;
+            player.body.velocity.x = -200;
         }
         else if (cursors.right.isDown)
         {
-            player.body.velocity.x = 150;
+            player.body.velocity.x = 200;
         }
         if (cursors.up.isDown)
         {
-            player.body.velocity.y = -150;
+            player.body.velocity.y = -200;
         }
         else if (cursors.down.isDown)
         {
-            player.body.velocity.y = 150;
+            player.body.velocity.y = 200;
         }
         
         //controls player firing
@@ -150,9 +170,13 @@ window.onload = function() {
         //controls coin creation
         createCoin();
         
-        //now to check enemies
-        //game.physics.arcade.overlap(bolts, enemies, magicHandler, null, this);
-        //game.physics.arcade.overlap(enemies, player, monsterHandler, null, this);
+        //controls enemy creation
+        createEnemy();
+        
+        //now to check collision
+        game.physics.arcade.overlap(bolts, enemies, shotHandler, null, this);
+        game.physics.arcade.overlap(enemies, player, monsterHandler, null, this);
+        game.physics.arcade.overlap(coins, player, coinHandler, null, this);
     }
     
     function shoot() {
@@ -179,23 +203,63 @@ window.onload = function() {
 
             coin.reset(800, game.world.randomY);
 
-            coin.body.velocity.x = -200;
+            coin.body.velocity.x = -100;
         }
     }
     
-    function magicHandler (enemy, bolt) {
+    function createEnemy() {
+        if (game.time.now > nextEnemy && enemies.countDead() > 0)
+        {
+            if(enemyTimer > minEnemyTimer)
+            {
+                enemyCount += 1;
+                if(enemyCount >= 5)
+                {
+                    enemyCount = 0;
+                    enemyTimer -= 100;
+                }
+            }
+            
+            nextEnemy = game.time.now + enemyTimer;
+
+            var enemy = enemies.getFirstExists(false);
+
+            enemy.reset(800, game.world.randomY);
+
+            enemy.body.velocity.x = -250;
+        }
+    }
+    
+    function shotHandler (enemy, bolt) {
 
         bolt.kill();
         enemy.kill();
-        score += 20;
+        score += 50;
     }
     
     function monsterHandler(player, enemy)
     {
-        player.kill();
-        isAlive = false;
-        lost = game.add.text(game.world.centerX, game.world.centerY, "GAME OVER!", style);
-        lost.anchor.setTo( 0.5, 0.5);
+        enemy.kill();
+        if(lives > 0)
+            lives -= 1;
+        
+        if(lives <= 0)
+        {
+            player.kill();
+            isAlive = false;
+            lost = game.add.text(game.world.centerX, game.world.centerY, "GAME OVER!", style);
+            lost.anchor.setTo( 0.5, 0.5);
+        }
+    }
+    
+    function coinHandler(player, coin)
+    {
+        coin.kill();
+        coinfx.play();
+        if(fireRate > maxFireRate)
+            fireRate -= 5;
+        
+        score += 10;
     }
     
     
